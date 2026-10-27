@@ -1,0 +1,6 @@
+{
+  "name": "prompt-improver",
+  "version": "0.3.0",
+  "description": "Rewrite and review only prompts ending in --improve using the current Claude Code conversation.",
+  "author": { "name": "Codex" }
+}

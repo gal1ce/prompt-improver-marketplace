@@ -1,0 +1,12 @@
+{
+  "name": "prompt-improver-marketplace",
+  "description": "A public Claude Code plugin marketplace featuring Prompt Improver",
+  "owner": { "name": "gal1ce" },
+  "plugins": [
+    {
+      "name": "prompt-improver",
+      "source": "./plugins/prompt-improver",
+      "description": "Rewrite and review prompts ending in --improve using the current session context"
+    }
+  ]
+}

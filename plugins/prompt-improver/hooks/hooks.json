@@ -1,0 +1,4 @@
+{
+  "description": "Opt-in prompt rewriting for the current Claude Code session",
+  "modules": ["./register.js"]
+}
