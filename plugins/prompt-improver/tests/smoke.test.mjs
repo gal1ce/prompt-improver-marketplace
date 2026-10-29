@@ -69,7 +69,8 @@ test('marked prompt sends an accepted rewrite after reviewer approval', async ()
   const { forwarded } = await h.submit('Explain auth. --improve');
   assert.equal(forwarded.text, draft);
   assert.equal(h.calls.fork.length, 2);
-  assert.match(h.logs.at(-1), /Reviewer accepted the draft/);
+  assert.ok(h.logs.some((l) => /Reviewer accepted the draft/.test(l)));
+  assert.equal(h.logs.at(-1), `[prompt sent to the model]\n${draft}`);
 });
 
 test('reviewer repair replaces the draft and removes a returned marker', async () => {
@@ -79,7 +80,7 @@ test('reviewer repair replaces the draft and removes a returned marker', async (
   ] });
   const { forwarded } = await h.submit('Investigate authentication. --improve');
   assert.equal(forwarded.text, 'Investigate authentication only.');
-  assert.match(h.logs.at(-1), /Reviewer corrected the draft/);
+  assert.ok(h.logs.some((l) => /Reviewer corrected the draft/.test(l)));
 });
 
 test('reviewer outage keeps the usable rewrite and reports the fallback', async () => {
@@ -89,7 +90,7 @@ test('reviewer outage keeps the usable rewrite and reports the fallback', async 
   });
   const { forwarded } = await h.submit('Request. --improve');
   assert.equal(forwarded.text, 'Clearer request.');
-  assert.match(h.logs.at(-1), /Reviewer unavailable/);
+  assert.ok(h.logs.some((l) => /Reviewer unavailable/.test(l)));
 });
 
 test('cold rewrite fork uses complete, then reviewer uses fork', async () => {
@@ -110,4 +111,49 @@ test('empty marked prompt is dropped before model calls', async () => {
   assert.deepEqual(result, { drop: 'Write the request before --improve.' });
   assert.equal(forwarded, undefined);
   assert.equal(h.calls.fork.length + h.calls.complete.length, 0);
+});
+
+test('rewrite instructions require an English prompt scaled to task difficulty', async () => {
+  const draft = 'Re-verify the results from raw data.';
+  const h = createHarness({ forkResponses: [
+    { text: draft },
+    { text: JSON.stringify({ decision: 'accept', text: draft }) },
+  ] });
+  await h.submit('Sonuçlara güvenmiyorum, detaylı analiz yap. --improve');
+  assert.match(h.calls.fork[0].prompt, /Always write the rewritten prompt in English/);
+  assert.match(h.calls.fork[0].prompt, /Hard or open-ended/);
+  assert.match(h.calls.fork[1].prompt, /must be in English/);
+});
+
+test('long final prompt is logged in full across several lines', async () => {
+  const draft = 'x'.repeat(4500);
+  const h = createHarness({ forkResponses: [
+    { text: draft },
+    { text: JSON.stringify({ decision: 'accept', text: draft }) },
+  ] });
+  await h.submit('Do it. --improve');
+  const parts = h.logs.filter((l) => l.startsWith('[prompt sent to the model'));
+  assert.equal(parts.length, 3);
+  assert.equal(parts.map((l) => l.slice(l.indexOf('\n') + 1)).join(''), draft);
+});
+
+test('--max-tokens after --improve overrides the reply cap and is stripped', async () => {
+  const draft = 'Clear request.';
+  const h = createHarness({
+    forkResponses: [null, null],
+    completeResponses: [draft, JSON.stringify({ decision: 'accept', text: draft })],
+  });
+  const { forwarded } = await h.submit('Request. --improve --max-tokens 40000');
+  assert.equal(forwarded.text, draft);
+  assert.match(h.calls.complete[0].prompt, /"Request\."/);
+  assert.deepEqual(h.calls.complete.map((c) => c.maxTokens), [40000, 40000]);
+});
+
+test('reply cap defaults to 24000 and is clamped to 64000', async () => {
+  const draft = 'Clear request.';
+  for (const [suffix, expected] of [['--improve', 24000], ['--improve --max-tokens=999999', 64000]]) {
+    const h = createHarness({ forkResponses: [null], completeResponses: [draft] });
+    await h.submit(`Request. ${suffix}`);
+    assert.equal(h.calls.complete[0].maxTokens, expected);
+  }
 });

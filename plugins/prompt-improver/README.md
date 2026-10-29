@@ -4,7 +4,8 @@ A small Claude Code mod that rewrites a submitted prompt only when its final tok
 
 ## Behavior
 
-- Rebuilds marked prompts as clear, actionable requests rather than only correcting spelling or formatting. Depending on the task, it can add useful background from the conversation, concrete work steps, deliverables, constraints, and completion criteria while keeping the original scope.
+- Rebuilds marked prompts as clear, actionable requests rather than only correcting spelling or formatting. Depending on the task, it can add useful background from the conversation, concrete work steps, deliverables, constraints, and completion criteria while keeping the original scope. The rewritten prompt is always in English (literal strings stay verbatim) and asks the assistant to reply in the user's language. Depth scales with difficulty: hard, open-ended goals get full context, open questions, rigor requirements and deliverables.
+- Logs the full prompt sent to the model in the transcript, split into parts when it is longer than the terminal draws in one line.
 - Works on the submitted prompt in the current interactive session.
 - Uses `$.model.fork()` to preserve the session model and context when a reusable model snapshot is available; accepts the documented `{ text, usage }` reply shape.
 - If the fork has no reusable snapshot or returns no text, retries with `$.model.complete()` using a bounded excerpt of recent user/assistant messages and the current session model.
@@ -18,9 +19,12 @@ A small Claude Code mod that rewrites a submitted prompt only when its final tok
 
 Project context is capped at 80 top-level entries, 2,400 characters per selected file, and 11,000 characters overall. The selected files are `CLAUDE.md`, `AGENTS.md`, `README.md`, common language/build manifests, `Makefile`, and `.claude/CLAUDE.md` when present. Their contents are passed to the rewrite model as quoted data, not as instructions that supersede the rewrite task.
 
+The reply cap of the fallback model calls is 24,000 tokens. Override it per prompt by adding `--max-tokens N` (or `--max-tokens=N`) right after `--improve`; values above 64,000 are clamped. It does not apply to the `$.model.fork()` path, which has no cap setting.
+
 Examples:
 
 ```text
+Plan the next tournament submission. --improve --max-tokens 40000
 Investigate why the login test fails; don't change auth behavior. --improve
 Explain how the migration flow we discussed works. --improve
 ```
